@@ -33,7 +33,7 @@
     font-family:'Archivo','Noto Sans Thai',sans-serif;
     -webkit-font-smoothing:antialiased;
     min-height:100vh;
-    overflow-x:hidden; /* ป้องกันหน้าเว็บเลื่อนซ้ายขวา */
+    overflow-x:hidden;
   }
   ::selection{background:var(--amber);color:var(--ink);}
   a{color:inherit;}
@@ -273,7 +273,6 @@
   .chip-toggle.off{opacity:.4;}
   .dot{width:9px;height:9px;border-radius:2px;flex:none;}
 
-  /* แถบคำแนะนำด้านบนปฏิทิน */
   .calendar-guide-bar {
     display: flex;
     align-items: center;
@@ -369,7 +368,6 @@
 
   .cal-grid{
     display:grid;
-    /* ใช้ minmax(0, 1fr) เพื่อป้องกันไม่ให้ตารางทะลุจอเมื่อเจอข้อความยาวๆ */
     grid-template-columns:repeat(7, minmax(0, 1fr));
     gap:8px;
   }
@@ -395,7 +393,7 @@
     cursor: pointer;
     transition: box-shadow .15s ease, border-color .15s ease;
     position: relative;
-    min-width: 0; /* ป้องกันเนื้อหาดันเซลล์ให้กว้างทะลุจอ */
+    min-width: 0; 
   }
   .cal-cell:hover { border-color: #C9D0DE; box-shadow: 0 4px 12px rgba(19,34,66,.05); }
   .cal-cell.empty{background:transparent;border-color:transparent;cursor:default;}
@@ -441,7 +439,7 @@
     font-weight:600;
     width:100%;
     z-index: 2;
-    overflow: hidden; /* ป้องกันข้อความยาวทะลุ */
+    overflow: hidden;
   }
   .chip-top{display:flex;align-items:center;justify-content:space-between;gap:6px;}
   .chip-top span {
@@ -681,7 +679,6 @@
   }
 
   @media (max-width:720px){
-    /* ปรับช่องไฟและขนาดเพื่อบีบให้ลงในจอมือถือได้พอดี */
     .cal-grid{ gap: 4px; }
     .cal-cell{ min-height: 80px; padding: 4px; gap: 4px; }
     .cal-dow{ font-size: 9px; }
@@ -780,7 +777,7 @@
     </div>
   </section>
 
-  <!-- แถบคำแนะนำการใช้งานปฏิทิน (เพิ่มเข้ามาใหม่ ย้ายจากในช่อง) -->
+  <!-- แถบคำแนะนำการใช้งานปฏิทิน -->
   <div class="calendar-guide-bar" id="calendarGuideBar">
     <span id="txtGuideText">💡 คลิกที่ช่องวันที่เพื่อดูไทม์ไลน์รายวัน หรือคลิกที่ป้ายรายการเพื่อดูรายละเอียด</span>
   </div>
@@ -816,14 +813,14 @@
 
   <section id="listView" style="display:none;">
     <div class="floor-plan-wrap">
-      <div class="floor-section">
+      <div class="floor-section" id="secSecondFloor">
         <div class="floor-section-head">
           <h2 class="floor-title" id="txtSecondFloorTitle">Second Floor</h2>
           <span class="floor-sub" id="txtSecondFloorSub">M1–M7</span>
         </div>
         <div class="floor-grid rooms-grid" id="secondFloorGrid"></div>
       </div>
-      <div class="floor-section">
+      <div class="floor-section" id="secFirstFloor">
         <div class="floor-section-head">
           <h2 class="floor-title" id="txtFirstFloorTitle">First Floor</h2>
           <span class="floor-sub" id="txtFirstFloorSub">H1–H3</span>
@@ -1319,7 +1316,10 @@ function renderCalendar(scrollToHighlight){
     const isToday = dateStr===todayStr;
     const isHit = highlightDay === day;
 
-    const items = (byDay[day]||[]).slice().sort((a,b)=>a.time.localeCompare(b.time));
+    let items = (byDay[day]||[]).slice();
+    // ซ่อนรายการที่ไม่ตรงกับเงื่อนไข Filter ออกไปทั้งหมด
+    items = items.filter(it => matchesFilter(it)).sort((a,b)=>a.time.localeCompare(b.time));
+
     const visible = items.slice(0,3);
     const rest = items.length-visible.length;
     const hasMoreThanThree = items.length >= 4;
@@ -1330,9 +1330,7 @@ function renderCalendar(scrollToHighlight){
         ${hasMoreThanThree ? '<span class="cal-arrow-icon">➔</span>' : ''}
       </div>
       ${visible.map((it)=>{
-        const isMatched = matchesFilter(it);
-        const matchStyle = isMatched ? 'box-shadow: 0 0 0 2px var(--amber); filter: brightness(1.05);' : 'opacity: 0.65;';
-        return `<button class="chip" style="background:${colorFor(it.rooms[0])}; ${matchStyle}" onclick="event.stopPropagation(); openModal(${it._id})">
+        return `<button class="chip" style="background:${colorFor(it.rooms[0])}; box-shadow: 0 1px 3px rgba(0,0,0,0.1);" onclick="event.stopPropagation(); openModal(${it._id})">
           <span class="chip-top"><span>${escapeHtml(it.room)}</span></span>
           <span class="t">${escapeHtml(it.time)}</span>
         </button>`;
@@ -1368,7 +1366,11 @@ function currentDateStr(){
 }
 
 function renderTimeline() {
-  const roomsList = [...ROOMS_LIST, ...HALLS_LIST];
+  let currentRoomsList = [...ROOMS_LIST, ...HALLS_LIST];
+  // ถ้ามีการเลือกห้อง ให้ซ่อนแถวของห้องที่ไม่ได้เลือก
+  if(selectedRooms.size > 0) {
+    currentRoomsList = currentRoomsList.filter(r => selectedRooms.has(r));
+  }
 
   let hoursHtml = "";
   let gridBgHtml = "";
@@ -1378,12 +1380,13 @@ function renderTimeline() {
   }
 
   const dateStr = currentDateStr();
-  const dayEvents = DATA.filter(d => d.date === dateStr);
+  // ซ่อนอีเวนต์ที่ไม่ตรงกับเงื่อนไข
+  const dayEvents = DATA.filter(d => d.date === dateStr && matchesFilter(d));
 
   document.getElementById("tlEmpty").style.display = dayEvents.length ? "none" : "block";
 
   let rowsHtml = "";
-  roomsList.forEach(rm => {
+  currentRoomsList.forEach(rm => {
     let eventsHtml = "";
     dayEvents.forEach(ev => {
       if(ev.rooms.includes(rm)) {
@@ -1394,9 +1397,7 @@ function renderTimeline() {
           if (clampE > clampS) {
             const left = ((clampS - 360) / 1020) * 100;
             const width = ((clampE - clampS) / 1020) * 100;
-            const isMatched = matchesFilter(ev);
-            const matchStyle = isMatched ? 'box-shadow: 0 0 0 2px var(--ink), 0 2px 5px rgba(0,0,0,0.25); z-index:3;' : 'opacity: 0.45;';
-            eventsHtml += `<div class="tl-event" style="left:${left}%; width:${width}%; background:${colorFor(rm)}; ${matchStyle}" onclick="openModal(${ev._id})">${escapeHtml(ev.room)}</div>`;
+            eventsHtml += `<div class="tl-event" style="left:${left}%; width:${width}%; background:${colorFor(rm)}; box-shadow: 0 2px 5px rgba(0,0,0,0.15); z-index:3;" onclick="openModal(${ev._id})">${escapeHtml(ev.room)}</div>`;
           }
         }
       }
@@ -1405,7 +1406,7 @@ function renderTimeline() {
   });
 
   let roomsHtml = `<div class="tl-header-empty"></div>`;
-  roomsList.forEach(rm => { roomsHtml += `<div class="tl-room-label">${rm}</div>`; });
+  currentRoomsList.forEach(rm => { roomsHtml += `<div class="tl-room-label">${rm}</div>`; });
 
   document.getElementById("tlRooms").innerHTML = roomsHtml;
   document.getElementById("tlGrid").innerHTML = `
@@ -1419,7 +1420,8 @@ function renderTimeline() {
 
 /* ---------- FLOOR PLAN VIEW ---------- */
 function buildRoomBox(code, dayEvents){
-  const bookings = dayEvents.filter(ev=>ev.rooms.includes(code)).slice().sort((a,b)=>a.time.localeCompare(b.time));
+  // ซ่อนรายละเอียดการจองที่ไม่ตรงกับเงื่อนไข
+  const bookings = dayEvents.filter(ev=>ev.rooms.includes(code) && matchesFilter(ev)).slice().sort((a,b)=>a.time.localeCompare(b.time));
 
   if(bookings.length === 0){
     return `<div class="room-box free">
@@ -1433,9 +1435,7 @@ function buildRoomBox(code, dayEvents){
     <div class="rb-status">${t("statusBooked")}</div>
     <div class="rb-times">
       ${bookings.map(b=>{
-        const isMatched = matchesFilter(b);
-        const matchStyle = isMatched ? 'border: 2px solid var(--ink); font-weight: 800;' : 'opacity: 0.55;';
-        return `<button type="button" class="rb-time-chip" style="${matchStyle}" onclick="openModal(${b._id})">${escapeHtml(b.time)}</button>`;
+        return `<button type="button" class="rb-time-chip" onclick="openModal(${b._id})">${escapeHtml(b.time)}</button>`;
       }).join("")}
     </div>
   </div>`;
@@ -1445,10 +1445,22 @@ function renderFloorPlan(){
   const dateStr = currentDateStr();
   const dayEvents = DATA.filter(d => d.date === dateStr);
 
+  let curRooms = ROOMS_LIST;
+  let curHalls = HALLS_LIST;
+
+  // ซ่อนบล็อกห้องและฮอลล์ที่ไม่ได้เลือก
+  if(selectedRooms.size > 0){
+    curRooms = curRooms.filter(r => selectedRooms.has(r));
+    curHalls = curHalls.filter(r => selectedRooms.has(r));
+  }
+
+  document.getElementById("secSecondFloor").style.display = curRooms.length ? "block" : "none";
+  document.getElementById("secFirstFloor").style.display = curHalls.length ? "block" : "none";
+
   document.getElementById("secondFloorGrid").innerHTML =
-    ROOMS_LIST.map(r => buildRoomBox(r, dayEvents)).join("");
+    curRooms.map(r => buildRoomBox(r, dayEvents)).join("");
   document.getElementById("firstFloorGrid").innerHTML =
-    HALLS_LIST.map(r => buildRoomBox(r, dayEvents)).join("");
+    curHalls.map(r => buildRoomBox(r, dayEvents)).join("");
 }
 
 function renderAll(scroll){
