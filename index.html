@@ -7,7 +7,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Noto+Sans+Thai:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   :root{
     --ink:#132242;
@@ -116,8 +115,22 @@
     font-size:13px;
     color:#C9D0DE;
     text-align:right;
+    display:flex;
+    align-items:center;
+    gap:8px;
   }
   .clock strong{color:var(--paper);font-size:15px;display:block;}
+  .clock-text{display:flex;flex-direction:column;}
+
+  .refresh-spinner{
+    width:14px;height:14px;flex:none;
+    border-radius:50%;
+    border:2px solid rgba(255,255,255,.25);
+    border-top-color:var(--amber);
+    animation:spin .8s linear infinite;
+  }
+  .refresh-spinner[hidden]{display:none;}
+  @keyframes spin{ to{ transform:rotate(360deg); } }
 
   .controls-row{
     max-width:1180px;
@@ -221,34 +234,13 @@
     text-transform:uppercase;color:var(--slate);
   }
 
-  .split-date-box{
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    background: var(--paper);
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: 4px 8px;
-  }
-  .split-date-box input {
-    border: none;
-    background: transparent;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 13px;
-    color: var(--ink);
-    text-align: center;
-    outline: none;
-  }
-  .split-date-box input.dd, .split-date-box input.mm { width: 28px; }
-  .split-date-box input.yyyy { width: 48px; }
-  .split-date-box input:focus { color: var(--amber-deep); }
-  .split-date-slash { color: var(--slate); font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
-
-  .fp-field input[type=time]{
+  .fp-field input[type=time],
+  .fp-field input[type=date]{
     border:1px solid var(--line);border-radius:8px;padding:8px 10px;
     font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ink);
     background:var(--paper);min-width:0;
   }
+  .fp-field input[type=date]{min-width:150px;}
   .fp-time-inputs{display:flex;align-items:center;gap:8px;}
   .fp-dash{color:var(--slate);font-family:'IBM Plex Mono',monospace;}
   .fp-chips{display:flex;flex-wrap:wrap;gap:8px;}
@@ -582,6 +574,37 @@
   }
   .rb-time-chip:hover{ background:rgba(193,71,58,.22); }
 
+  /* ---------- LOADING / SKELETON ---------- */
+  .skeleton-wrap{ display:none; }
+  .skeleton-nav{
+    height:34px;
+    max-width:220px;
+    margin:0 auto 18px;
+    border-radius:8px;
+    background:var(--line);
+    position:relative;
+    overflow:hidden;
+  }
+  .skeleton-cell{
+    background:var(--paper-raised);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    min-height:112px;
+    position:relative;
+    overflow:hidden;
+  }
+  .skeleton-nav::after,
+  .skeleton-cell::after{
+    content:"";
+    position:absolute; inset:0;
+    background:linear-gradient(90deg, transparent, rgba(19,34,66,.08), transparent);
+    animation:shimmer 1.4s infinite;
+    transform:translateX(-100%);
+  }
+  @keyframes shimmer{
+    100%{ transform:translateX(100%); }
+  }
+
   .error-screen {
     display: flex;
     flex-direction: column;
@@ -681,6 +704,7 @@
   @media (max-width:720px){
     .cal-grid{ gap: 4px; }
     .cal-cell{ min-height: 80px; padding: 4px; gap: 4px; }
+    .skeleton-cell{ min-height: 80px; }
     .cal-dow{ font-size: 9px; }
     .cal-daynum{ font-size: 11px; }
     .chip{ font-size: 9.5px; padding: 3px 4px; }
@@ -721,8 +745,11 @@
         <span id="txtContactLinkLabel">—</span>
       </a>
       <div class="clock">
-        <strong id="clockTime">--:--</strong>
-        <span id="clockDate">…</span>
+        <span class="refresh-spinner" id="refreshSpinner" hidden title="Refreshing…"></span>
+        <span class="clock-text">
+          <strong id="clockTime">--:--</strong>
+          <span id="clockDate">…</span>
+        </span>
       </div>
       <div class="lang-toggle">
         <button id="langBtn" type="button">EN</button>
@@ -750,14 +777,8 @@
     <p class="filter-desc" id="txtFilterDesc">—</p>
     <div class="fp-row">
       <div class="fp-field">
-        <label class="fp-label" id="txtFilterDate" for="dateInputDD">—</label>
-        <div class="split-date-box" id="splitDateBox">
-          <input type="text" id="dateInputDD" class="dd" placeholder="DD" maxlength="2" autocomplete="off">
-          <span class="split-date-slash">/</span>
-          <input type="text" id="dateInputMM" class="mm" placeholder="MM" maxlength="2" autocomplete="off">
-          <span class="split-date-slash">/</span>
-          <input type="text" id="dateInputYYYY" class="yyyy" placeholder="YYYY" maxlength="4" autocomplete="off">
-        </div>
+        <label class="fp-label" id="txtFilterDate" for="dateInputNative">—</label>
+        <input type="date" id="dateInputNative" aria-label="Date filter">
       </div>
       <div class="fp-field">
         <span class="fp-label" id="txtFilterTime">—</span>
@@ -798,6 +819,12 @@
     </div>
     <button id="nextMonth" class="step" aria-label="Next">›</button>
   </div>
+
+  <!-- Loading skeleton (shown only during the very first data fetch) -->
+  <section id="loadingView" class="skeleton-wrap" aria-hidden="true">
+    <div class="skeleton-nav"></div>
+    <div class="cal-grid" id="skeletonGrid"></div>
+  </section>
 
   <section id="calendarView">
     <div class="cal-grid" id="calGrid"></div>
@@ -849,7 +876,11 @@
 <div id="modalRoot"></div>
 
 <script>
-const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRXE42FS_CtCLZUJjd29r85kJnGpb4-gopVm7s1xDZc4kLvdTzP_OMqi1ejSw7Po4jFVSnjt1-CD4Vn/pub?output=csv";
+// Deploy the included Code.gs as a Google Apps Script Web App (Deploy > New deployment > Web app,
+// "Execute as: Me", "Who has access: Anyone") and paste the resulting /exec URL below.
+// The script pre-filters expired bookings server-side, so the browser only ever
+// downloads a small, relevant JSON payload instead of the entire booking history as CSV.
+const JSON_API_URL = "https://script.google.com/macros/s/AKfycbzXiaETJRcLtNberUFuXyaAlDnEETPslcOOVIoN_4ZoIFoEZ4SPwNujKFmSyXP0hHQ0Vg/exec";
 
 const roomColorMap = {};
 function hslToHex(h,s,l){
@@ -982,6 +1013,7 @@ let popoverMode = "month";
 let yearGridStart = null;
 let popoverBrowseY = null;
 let popoverBrowseM = null;
+let isInitialLoad = true;
 
 let selectedRooms = new Set();
 let filterDate = ""; 
@@ -1024,20 +1056,49 @@ document.getElementById("langBtn").addEventListener("click", ()=>{
   applyLanguage();
 });
 
-function parseCsvRows(rows){
+function parseJsonRows(rows){
   return rows.map((r, i)=>{
     const roomArr = getRoomArray(r.room||r.Room||r["Room/Hall"]||"");
     return {
       _id: i,
-      date:(r.date||r.Date||"").trim(),
-      time:(r.time||r.Time||"").trim(),
+      date:String(r.date||r.Date||"").trim(),
+      time:String(r.time||r.Time||"").trim(),
       rooms: roomArr,
       room: roomArr.join(", "),
     }
   }).filter(r=>r.date && r.rooms.length > 0);
 }
 
+/* ---------- LOADING / SKELETON ---------- */
+function buildSkeletonGrid(){
+  const dow = TRANSLATIONS[lang].dow;
+  let html = dow.map(d=>`<div class="cal-dow">${d}</div>`).join("");
+  for(let i=0;i<35;i++) html += `<div class="skeleton-cell"></div>`;
+  document.getElementById("skeletonGrid").innerHTML = html;
+}
+
+function showLoadingScreen(){
+  buildSkeletonGrid();
+  document.getElementById("loadingView").style.display = "block";
+  document.getElementById("calendarView").style.display = "none";
+  document.getElementById("dayView").style.display = "none";
+  document.getElementById("listView").style.display = "none";
+  document.getElementById("monthNavContainer").style.display = "none";
+  document.getElementById("calendarGuideBar").style.display = "none";
+  document.getElementById("errorView").style.display = "none";
+}
+
+function hideLoadingScreen(){
+  document.getElementById("loadingView").style.display = "none";
+  document.getElementById("monthNavContainer").style.display = "flex";
+}
+
+function setRefreshing(isRefreshing){
+  document.getElementById("refreshSpinner").hidden = !isRefreshing;
+}
+
 function showErrorScreen(code = "502"){
+  hideLoadingScreen();
   document.getElementById("calendarView").style.display = "none";
   document.getElementById("dayView").style.display = "none";
   document.getElementById("listView").style.display = "none";
@@ -1059,12 +1120,14 @@ function showErrorScreen(code = "502"){
 function loadData(){
   const errView = document.getElementById("errorView");
   errView.style.display = "none";
-  document.getElementById("monthNavContainer").style.display = "flex";
-  if(currentView === 'cal') {
-    document.getElementById("calendarGuideBar").style.display = "flex";
+
+  if(isInitialLoad){
+    showLoadingScreen();
+  } else {
+    setRefreshing(true);
   }
 
-  if(!SHEET_CSV_URL){
+  if(!JSON_API_URL){
     DATA = SAMPLE_DATA.map((d, i)=>{
       const roomArr = getRoomArray(d.room);
       return {...d, _id: i, rooms: roomArr, room: roomArr.join(", ")};
@@ -1072,20 +1135,25 @@ function loadData(){
     afterLoad();
     return;
   }
-  Papa.parse(SHEET_CSV_URL, {
-    download:true, header:true, skipEmptyLines:true,
-    complete:(res)=>{
-      if(!res.data || res.data.length === 0) {
+  fetch(JSON_API_URL)
+    .then(res => {
+      if(!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    })
+    .then(rows => {
+      if(rows && rows.error) throw new Error(rows.error);
+      if(!Array.isArray(rows) || rows.length === 0){
         showErrorScreen("404");
+        setRefreshing(false);
         return;
       }
-      DATA = parseCsvRows(res.data);
+      DATA = parseJsonRows(rows);
       afterLoad();
-    },
-    error:()=>{
+    })
+    .catch(()=>{
       showErrorScreen("502");
-    }
-  });
+      setRefreshing(false);
+    });
 }
 
 function afterLoad(){
@@ -1103,6 +1171,15 @@ function afterLoad(){
   }
   popoverYear = currentMonth.y;
   applyLanguage();
+
+  document.getElementById("calendarView").style.display = (currentView==="cal") ? "block":"none";
+  document.getElementById("dayView").style.display = (currentView==="day") ? "block":"none";
+  document.getElementById("listView").style.display = (currentView==="list") ? "block":"none";
+  document.getElementById("calendarGuideBar").style.display = (currentView==="cal") ? "flex" : "none";
+  hideLoadingScreen();
+  setRefreshing(false);
+  isInitialLoad = false;
+
   document.getElementById("lastUpdatedTime").textContent =
     new Date().toLocaleString(TRANSLATIONS[lang].locale, {dateStyle:"medium", timeStyle:"short"});
 }
@@ -1162,6 +1239,14 @@ function buildRoomChips(){
       updateFilterBadge();
     });
   });
+}
+
+function debounce(fn, delay = 350){
+  let timer = null;
+  return function(...args){
+    clearTimeout(timer);
+    timer = setTimeout(()=> fn.apply(this, args), delay);
+  };
 }
 
 function escapeHtml(s){
@@ -1233,43 +1318,19 @@ function updateFilterBadge(){
   else { badge.hidden=true; }
 }
 
-const ddInput = document.getElementById("dateInputDD");
-const mmInput = document.getElementById("dateInputMM");
-const yyyyInput = document.getElementById("dateInputYYYY");
-
-function checkAndApplySplitDate() {
-  const dd = ddInput.value.trim();
-  const mm = mmInput.value.trim();
-  const yyyy = yyyyInput.value.trim();
-
-  if(dd.length === 2 && mm.length === 2 && yyyy.length === 4) {
-    filterDate = `${yyyy}-${mm}-${dd}`;
-    applyFiltersAndRender();
-    updateFilterBadge();
-  } else {
-    filterDate = "";
-    updateFilterBadge();
-  }
-}
-
-ddInput.addEventListener("input", (e)=>{
-  e.target.value = e.target.value.replace(/\D/g,'');
-  if(e.target.value.length === 2) { mmInput.focus(); }
-  checkAndApplySplitDate();
+const dateInputNative = document.getElementById("dateInputNative");
+const debouncedDateFilter = debounce((val)=>{
+  filterDate = val || "";
+  applyFiltersAndRender();
+  updateFilterBadge();
 });
-mmInput.addEventListener("input", (e)=>{
-  e.target.value = e.target.value.replace(/\D/g,'');
-  if(e.target.value.length === 2) { yyyyInput.focus(); }
-  checkAndApplySplitDate();
-});
-yyyyInput.addEventListener("input", (e)=>{
-  e.target.value = e.target.value.replace(/\D/g,'');
-  checkAndApplySplitDate();
-});
+// "input" fires on every keystroke/segment edit as well as native-picker selection;
+// debouncing means we only re-render once the user pauses, instead of on each keystroke.
+dateInputNative.addEventListener("input", (e)=> debouncedDateFilter(e.target.value));
 
 document.getElementById("filterClearBtn").addEventListener("click", ()=>{
   filterDate=""; filterTimeFrom=""; filterTimeTo="";
-  ddInput.value = ""; mmInput.value = ""; yyyyInput.value = "";
+  dateInputNative.value = "";
   selectedRooms.clear();
   document.getElementById("filterTimeFrom").value="";
   document.getElementById("filterTimeTo").value="";
@@ -1278,11 +1339,12 @@ document.getElementById("filterClearBtn").addEventListener("click", ()=>{
   updateFilterBadge();
 });
 
-document.getElementById("filterTimeFrom").addEventListener("change", (e)=>{
-  filterTimeFrom = e.target.value; renderAll(); updateFilterBadge();
+const debouncedTimeFilter = debounce(()=>{ renderAll(); updateFilterBadge(); });
+document.getElementById("filterTimeFrom").addEventListener("input", (e)=>{
+  filterTimeFrom = e.target.value; debouncedTimeFilter();
 });
-document.getElementById("filterTimeTo").addEventListener("change", (e)=>{
-  filterTimeTo = e.target.value; renderAll(); updateFilterBadge();
+document.getElementById("filterTimeTo").addEventListener("input", (e)=>{
+  filterTimeTo = e.target.value; debouncedTimeFilter();
 });
 document.getElementById("filterToggleBtn").addEventListener("click", ()=>{
   const btn = document.getElementById("filterToggleBtn");
@@ -1714,6 +1776,7 @@ function tickClock(){
 }
 setInterval(tickClock, 1000*30);
 
+showLoadingScreen();
 loadData();
 setInterval(loadData, 1000*60*5);
 </script>
