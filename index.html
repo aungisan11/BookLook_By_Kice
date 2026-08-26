@@ -6,7 +6,7 @@
 <title>BookLook_By_Kice</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Noto+Sans+Thai:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Noto+Sans+Thai:wght@500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
     --ink:#132242;
@@ -880,7 +880,7 @@
 // "Execute as: Me", "Who has access: Anyone") and paste the resulting /exec URL below.
 // The script pre-filters expired bookings server-side, so the browser only ever
 // downloads a small, relevant JSON payload instead of the entire booking history as CSV.
-const JSON_API_URL = "https://script.google.com/macros/s/AKfycbzXiaETJRcLtNberUFuXyaAlDnEETPslcOOVIoN_4ZoIFoEZ4SPwNujKFmSyXP0hHQ0Vg/exec";
+const JSON_API_URL = "https://script.google.com/macros/s/AKfycbx7fWJq62OFOrqRaEq82rMq9gqR5q_M15k9UBC1YH_yVlfYul3LrKO_DaKfCmvodXjamw/exec";
 
 const roomColorMap = {};
 function hslToHex(h,s,l){
@@ -1135,15 +1135,23 @@ function loadData(){
     afterLoad();
     return;
   }
-  fetch(JSON_API_URL)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(()=> controller.abort(), 12000);
+
+  fetch(JSON_API_URL, { signal: controller.signal })
     .then(res => {
+      clearTimeout(timeoutId);
       if(!res.ok) throw new Error("HTTP " + res.status);
       return res.json();
     })
     .then(rows => {
       if(rows && rows.error) throw new Error(rows.error);
       if(!Array.isArray(rows) || rows.length === 0){
-        showErrorScreen("404");
+        // Only treat this as a hard failure on the very first load.
+        // A background refresh that comes back empty is far more likely to be a
+        // transient Apps Script hiccup than an actual empty sheet, so keep
+        // showing whatever DATA already has instead of wiping the screen.
+        if(isInitialLoad) showErrorScreen("404");
         setRefreshing(false);
         return;
       }
@@ -1151,7 +1159,11 @@ function loadData(){
       afterLoad();
     })
     .catch(()=>{
-      showErrorScreen("502");
+      clearTimeout(timeoutId);
+      // Same idea: a failed background refresh should not destroy a calendar
+      // that was rendering fine a second ago. Fail quietly and try again on
+      // the next cycle. Only the first load gets the full error screen.
+      if(isInitialLoad) showErrorScreen("502");
       setRefreshing(false);
     });
 }
@@ -1778,7 +1790,16 @@ setInterval(tickClock, 1000*30);
 
 showLoadingScreen();
 loadData();
-setInterval(loadData, 1000*60*5);
+
+// Recursive setTimeout instead of setInterval, with a little random jitter,
+// so multiple tabs/devices that all loaded around the same moment don't
+// keep refreshing in lockstep and burst-hitting the Apps Script endpoint
+// at the same instant every 5 minutes.
+function scheduleRefresh(){
+  const jitter = Math.random() * 30000; // up to 30s spread
+  setTimeout(()=>{ loadData(); scheduleRefresh(); }, 1000*60*5 + jitter);
+}
+scheduleRefresh();
 </script>
 </body>
 </html>
